@@ -164,6 +164,8 @@ public class MainActivity extends AppCompatActivity
             // Draw the background color
             canvas.drawColor(Color.argb(255, 128, 200, 200));
 
+            canvas.drawLine(0,630,2000,630,paint);
+
             // Draw the score
             /*paint.setColor(Color.argb(255,  200, 128, 0));
             paint.setTextSize(45);
@@ -173,6 +175,7 @@ public class MainActivity extends AppCompatActivity
             for(Sprite s : model.sprites){
                 s.draw(canvas, paint);
             }
+            model.mario.draw(canvas,paint);
 
             ourHolder.unlockCanvasAndPost(canvas);
         }
