@@ -1,6 +1,7 @@
 package gregoryj17.mariogame;
 
 import android.content.Context;
+import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
@@ -12,6 +13,8 @@ import android.util.Log;
 import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
+
+import java.util.ArrayList;
 
 public class MainActivity extends AppCompatActivity
 {
@@ -27,6 +30,8 @@ public class MainActivity extends AppCompatActivity
         view = new GameView(this, model);
         controller = new GameController(model, view);
         setContentView(view);
+
+        model.startGame();
     }
 
     @Override
@@ -53,31 +58,53 @@ public class MainActivity extends AppCompatActivity
 
     static class Model
     {
-        boolean flap = false;
-        boolean flapped_recently = false;
-        float x = 200.0f;
-        float y = 200.0f;
-        float yVelocity = -8.0f;
+        ArrayList<Sprite> sprites;
+        Mario mario;
+        int scrollPos=0;
+
+        Model(){
+            sprites = new ArrayList<Sprite>();
+            mario = new Mario(this);
+            sprites.add(mario);
+        }
+
+        public void spawnGoomba(int x, int y){
+            Goomba g = new Goomba(x,y);
+            sprites.add(g);
+        }
+
+        public void shootFlame(){
+            Fireball f = new Fireball(mario.x,mario.y);
+            sprites.add(f);
+        }
+
+        void scroll(int scrollAmount){
+            scrollPos += scrollAmount;
+        }
 
         void update()
         {
-            if(flap)
-            {
-                yVelocity = -24.0f;
-                flap = false;
+            for(Sprite s : sprites){
+                s.update();
             }
-
-            // Fall
-            yVelocity += 1.8f;
-            y += yVelocity;
-
-            // Bounce on the bottom of the screen
-            if(y > 700.0f)
-            {
-                y = 700.0f;
-                yVelocity = -6.0f;
+            for(int i=0;i<sprites.size();i++){
+                if(sprites.get(i).toRemove){
+                    sprites.remove(i);
+                    i--;
+                }
             }
         }
+
+        void startGame(){
+            sprites = new ArrayList<Sprite>();
+            sprites.add(mario);
+
+            sprites.add(new Tube(557,496));
+            sprites.add(new Tube(875,437));
+
+            sprites.add(new Goomba(766,478));
+        }
+
     }
 
 
@@ -90,7 +117,6 @@ public class MainActivity extends AppCompatActivity
         Paint paint;
         Model model;
         GameController controller;
-        Mario mario;
 
 
         public GameView(Context context, Model m)
@@ -111,16 +137,15 @@ public class MainActivity extends AppCompatActivity
                     R.mipmap.goomba_fire);
             Tube.image = BitmapFactory.decodeResource(this.getResources(),
                     R.mipmap.tube);
-            mario = new Mario(model);
-            mario.images[0] = BitmapFactory.decodeResource(this.getResources(),
+            Mario.images[0] = BitmapFactory.decodeResource(this.getResources(),
                     R.mipmap.mario1);
-            mario.images[1] = BitmapFactory.decodeResource(this.getResources(),
+            Mario.images[1] = BitmapFactory.decodeResource(this.getResources(),
                     R.mipmap.mario2);
-            mario.images[2] = BitmapFactory.decodeResource(this.getResources(),
+            Mario.images[2] = BitmapFactory.decodeResource(this.getResources(),
                     R.mipmap.mario3);
-            mario.images[3] = BitmapFactory.decodeResource(this.getResources(),
+            Mario.images[3] = BitmapFactory.decodeResource(this.getResources(),
                     R.mipmap.mario4);
-            mario.images[4] = BitmapFactory.decodeResource(this.getResources(),
+            Mario.images[4] = BitmapFactory.decodeResource(this.getResources(),
                     R.mipmap.mario5);
 
         }
@@ -145,10 +170,9 @@ public class MainActivity extends AppCompatActivity
             canvas.drawText("Score:" + score, 25, 35, paint);*/
 
             // Draw the turtle
-            if(model.flapped_recently)
-                canvas.drawBitmap(bird2, model.x, model.y, paint);
-            else
-                canvas.drawBitmap(bird1, model.x, model.y, paint);
+            for(Sprite s : model.sprites){
+                s.draw(canvas, paint);
+            }
 
             ourHolder.unlockCanvasAndPost(canvas);
         }
@@ -187,6 +211,17 @@ public class MainActivity extends AppCompatActivity
 
         void update()
         {
+            int scrollSpeed = 6;
+            if(keyLeft){
+                model.scroll(-1*scrollSpeed);
+            }
+            if(keyRight){
+                model.scroll(scrollSpeed);
+            }
+            if(keyUp){
+                model.mario.jump();
+            }
+            model.mario.moving(keyLeft,keyRight);
         }
 
         @Override
@@ -208,17 +243,33 @@ public class MainActivity extends AppCompatActivity
             }
         }
 
-        /TODO: THIS
+
         void onTouchEvent(MotionEvent motionEvent)
         {
             switch (motionEvent.getAction() & MotionEvent.ACTION_MASK) {
                 case MotionEvent.ACTION_DOWN: // Player touched the screen
-                    model.flap = true;
-                    model.flapped_recently = true;
+                    //Top-Left, Jump
+                    if(motionEvent.getX()<(getWidth()/2)&&motionEvent.getY()<(getHeight()/2)){
+                        keyUp=true;
+                    }
+                    //Top-Right, Fireball
+                    else if(motionEvent.getX()>=(getWidth()/2)&&motionEvent.getY()<(getHeight()/2)){
+                        model.shootFlame();
+                    }
+                    //Bottom-Left, Move left
+                    else if(motionEvent.getX()<(getWidth()/2)&&motionEvent.getY()>=(getHeight()/2)){
+                        keyLeft=true;
+                    }
+                    //Bottom-Right, Move right
+                    else{
+                        keyRight=true;
+                    }
                     break;
 
                 case MotionEvent.ACTION_UP: // Player withdrew finger
-                    model.flapped_recently = false;
+                    keyUp=false;
+                    keyLeft=false;
+                    keyRight=false;
                     break;
             }
         }
@@ -240,6 +291,14 @@ public class MainActivity extends AppCompatActivity
             playing = true;
             gameThread = new Thread(this);
             gameThread.start();
+        }
+
+        public static int getWidth() {
+            return Resources.getSystem().getDisplayMetrics().widthPixels;
+        }
+
+        public static int getHeight() {
+            return Resources.getSystem().getDisplayMetrics().heightPixels;
         }
     }
 }
